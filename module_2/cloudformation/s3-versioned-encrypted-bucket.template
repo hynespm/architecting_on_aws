@@ -1,0 +1,54 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Cloudformation template for a versioned S3 bucket",
+  "Resources": {
+    "Bucket": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "BucketName": {
+          "Fn::Join": [
+            "-",
+            [
+              {
+                "Ref": "AWS::AccountId"
+              },
+              "encrypted-versoned-bucket"
+            ]
+          ]
+        },
+        "VersioningConfiguration": {
+          "Status": "Enabled"
+        },
+        "LifecycleConfiguration": {
+          "Rules": [
+            {
+              "ExpirationInDays": "1",
+              "NoncurrentVersionExpirationInDays": "1",
+              "Status": "Enabled"
+            }
+          ]
+        },
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "aws:kms"
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "VersionedBucket": {
+      "Description": "Versioned bucket",
+      "Value": {
+        "Ref": "Bucket"
+      },
+      "Export": {
+        "Name": "VersionedBucket"
+      }
+    }
+  }
+}
