@@ -1,0 +1,62 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Template for a Dynamodb",
+  "Resources": {
+    "Table": {
+      "Type": "AWS::DynamoDB::Table",
+      "Properties": {
+        "TableName": {
+          "Fn::Join": [
+            "-",
+            [
+              {
+                "Ref": "AWS::AccountId"
+              },
+              {
+                "Ref": "AWS::Region"
+              },
+              "dynamodb-table"
+            ]
+          ]
+        },
+        "StreamSpecification": {
+          "StreamViewType": "NEW_IMAGE"
+        },
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "maker_order_id",
+            "AttributeType": "S"
+          }
+        ],
+        "KeySchema": [
+          {
+            "AttributeName": "maker_order_id",
+            "KeyType": "HASH"
+          }
+        ],
+        "ProvisionedThroughput": {
+          "ReadCapacityUnits": "5",
+          "WriteCapacityUnits": "5"
+        },
+        "GlobalSecondaryIndexes": [
+          {
+            "IndexName": "maker-order-id-index",
+            "KeySchema": [
+              {
+                "AttributeName": "maker_order_id",
+                "KeyType": "HASH"
+              }
+            ],
+            "Projection": {
+              "ProjectionType": "ALL"
+            },
+            "ProvisionedThroughput": {
+              "ReadCapacityUnits": "5",
+              "WriteCapacityUnits": "5"
+            }
+          }
+        ]
+      }
+    }
+  }
+}
