@@ -1,0 +1,161 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Example of nested cloudformation template",
+  "Parameters": {
+    "Url": {
+      "Description": "The s3 url of the environment",
+      "Type": "String"
+    },
+    "Environment": {
+      "Description": "The name of the environment",
+      "Type": "String"
+    },
+    "Scope": {
+      "Type": "String",
+      "Description": "The name of this stack"
+    },
+    "DynamoDbRcu": {
+      "Type": "String",
+      "Description": "The read capacity units for the DynamoDB table"
+    },
+    "DynamoDbWcu": {
+      "Type": "String",
+      "Description": "The write capacity units for the DynamoDB table"
+    },
+    "Runtime": {
+      "Type": "String",
+      "Description": "Runtime of the lambda "
+    }
+  },
+  "Resources": {
+    "Bucket": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "BucketName": {
+          "Fn::Join": [
+            "-",
+            [
+              {
+                "Ref": "AWS::AccountId"
+              },
+              "non-nested-resource-bucket"
+            ]
+          ]
+        },
+        "VersioningConfiguration": {
+          "Status": "Enabled"
+        },
+        "LifecycleConfiguration": {
+          "Rules": [
+            {
+              "ExpirationInDays": "1",
+              "NoncurrentVersionExpirationInDays": "1",
+              "Status": "Enabled"
+            }
+          ]
+        },
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "aws:kms"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "APIGW": {
+      "Type": "AWS::CloudFormation::Stack",
+      "Properties": {
+        "TemplateURL": {
+          "Fn::Join": [
+            "",
+            [
+              {
+                "Ref": "Url"
+              },
+              "apigw.template"
+            ]
+          ]
+        },
+        "Parameters": {
+          "Environment": {
+            "Ref": "Environment"
+          },
+          "Scope": {
+            "Ref": "Environment"
+          }
+        }
+      }
+    },
+    "ServiceOne": {
+      "Type": "AWS::CloudFormation::Stack",
+      "Properties": {
+        "TemplateURL": {
+          "Fn::Join": [
+            "",
+            [
+              {
+                "Ref": "Url"
+              },
+              "api-service.template"
+            ]
+          ]
+        },
+        "Parameters": {
+          "Environment": {
+            "Ref": "Environment"
+          },
+          "Scope": {
+            "Ref": "Scope"
+          },
+          "ServiceName": "service-one",
+          "Runtime": {
+            "Ref": "Runtime"
+          },
+          "API": {
+            "Fn::GetAtt": [
+              "APIGW",
+              "Outputs.API"
+            ]
+          }
+        }
+      }
+    },
+    "ServiceTwo": {
+      "Type": "AWS::CloudFormation::Stack",
+      "Properties": {
+        "TemplateURL": {
+          "Fn::Join": [
+            "",
+            [
+              {
+                "Ref": "Url"
+              },
+              "api-service.template"
+            ]
+          ]
+        },
+        "Parameters": {
+          "Environment": {
+            "Ref": "Environment"
+          },
+          "Scope": {
+            "Ref": "Scope"
+          },
+          "ServiceName": "service-two",
+          "Runtime": {
+            "Ref": "Runtime"
+          },
+          "API": {
+            "Fn::GetAtt": [
+              "APIGW",
+              "Outputs.API"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

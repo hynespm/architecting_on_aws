@@ -1,0 +1,279 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Template to manage access to an AWS",
+  "Resources": {
+    "Admins": {
+      "Type": "AWS::IAM::Group",
+      "Properties": {
+        "ManagedPolicyArns": [
+          "arn:aws:iam::aws:policy/AdministratorAccess"
+        ],
+        "GroupName": "Admins",
+        "Path": "/"
+      }
+    },
+    "DeveloperGroup": {
+      "Type": "AWS::IAM::Group",
+      "Properties": {
+        "ManagedPolicyArns": [
+          "arn:aws:iam::aws:policy/PowerUserAccess"
+        ],
+        "GroupName": "Developers",
+        "Path": "/",
+        "Policies": [
+          {
+            "PolicyName": "RegionalRestriction",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Sid": "DenyAllOutsideRequestedRegions",
+                  "Effect": "Deny",
+                  "NotAction": [
+                    "ec2:*",
+                    "lambda:*",
+                    "rds:*",
+                    "elb:*",
+                    "ecs:*",
+                    "eks:*"
+                  ],
+                  "Resource": "*",
+                  "Condition": {
+                    "StringNotEquals": {
+                      "aws:RequestedRegion": [
+                        "eu-central-1"
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "DeveloperMFAPolicy": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyName": "developer-mfa-policy",
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "AllowAllUsersToListAccounts",
+              "Effect": "Allow",
+              "Action": [
+                "iam:ListAccountAliases",
+                "iam:ListUsers",
+                "iam:ListVirtualMFADevices",
+                "iam:GetAccountPasswordPolicy",
+                "iam:GetAccountSummary"
+              ],
+              "Resource": "*"
+            },
+            {
+              "Sid": "AllowIndividualUserToSeeAndManageOnlyTheirOwnAccountInformation",
+              "Effect": "Allow",
+              "Action": [
+                "iam:ChangePassword",
+                "iam:CreateAccessKey",
+                "iam:CreateLoginProfile",
+                "iam:DeleteAccessKey",
+                "iam:DeleteLoginProfile",
+                "iam:GetLoginProfile",
+                "iam:ListAccessKeys",
+                "iam:ListServiceSpecificCredentials",
+                "iam:UpdateAccessKey",
+                "iam:UpdateLoginProfile",
+                "iam:ListSigningCertificates",
+                "iam:DeleteSigningCertificate",
+                "iam:UpdateSigningCertificate",
+                "iam:UploadSigningCertificate",
+                "iam:ListSSHPublicKeys",
+                "iam:GetSSHPublicKey",
+                "iam:DeleteSSHPublicKey",
+                "iam:UpdateSSHPublicKey",
+                "iam:UploadSSHPublicKey",
+                "iam:ListUserTags",
+                "iam:ListPolicies",
+                "iam:ListGroupsForUser",
+                "iam:CreateRole"
+              ],
+              "Resource": "arn:aws:iam::*:user/${aws:username}"
+            },
+            {
+              "Sid": "AllowIndividualUserToListOnlyTheirOwnMFA",
+              "Effect": "Allow",
+              "Action": [
+                "iam:ListMFADevices"
+              ],
+              "Resource": [
+                "arn:aws:iam::*:mfa/*",
+                "arn:aws:iam::*:user/${aws:username}"
+              ]
+            },
+            {
+              "Sid": "AllowIndividualUserToManageTheirOwnMFA",
+              "Effect": "Allow",
+              "Action": [
+                "iam:CreateVirtualMFADevice",
+                "iam:DeleteVirtualMFADevice",
+                "iam:EnableMFADevice",
+                "iam:ResyncMFADevice"
+              ],
+              "Resource": [
+                "arn:aws:iam::*:mfa/${aws:username}",
+                "arn:aws:iam::*:user/${aws:username}"
+              ]
+            },
+            {
+              "Sid": "AllowIndividualUserToDeactivateOnlyTheirOwnMFAOnlyWhenUsingMFA",
+              "Effect": "Allow",
+              "Action": [
+                "iam:DeactivateMFADevice"
+              ],
+              "Resource": [
+                "arn:aws:iam::*:mfa/${aws:username}",
+                "arn:aws:iam::*:user/${aws:username}"
+              ],
+              "Condition": {
+                "Bool": {
+                  "aws:MultiFactorAuthPresent": "true"
+                }
+              }
+            },
+            {
+              "Sid": "ManageOwnPassword",
+              "Effect": "Allow",
+              "Action": [
+                "iam:ChangePassword"
+              ],
+              "Resource": "arn:aws:iam::*:user/${aws:username}"
+            },
+            {
+              "Effect": "Allow",
+              "Action": [
+                "iam:CreateInstanceProfile",
+                "iam:DeleteInstanceProfile",
+                "iam:GetRole",
+                "iam:GetInstanceProfile",
+                "iam:RemoveRoleFromInstanceProfile",
+                "iam:CreateRole",
+                "iam:DeleteRole",
+                "iam:AttachRolePolicy",
+                "iam:PutRolePolicy",
+                "iam:ListInstanceProfiles",
+                "iam:AddRoleToInstanceProfile",
+                "iam:ListInstanceProfilesForRole",
+                "iam:PassRole",
+                "iam:DetachRolePolicy",
+                "iam:DeleteRolePolicy",
+                "iam:GetRolePolicy",
+                "iam:GetOpenIDConnectProvider"
+              ],
+              "Resource": [
+                "*"
+              ]
+            },
+            {
+              "Sid": "BlockMostAccessUnlessSignedInWithMFA",
+              "Effect": "Deny",
+              "NotAction": [
+                "iam:CreateVirtualMFADevice",
+                "iam:ListVirtualMFADevices",
+                "iam:EnableMFADevice",
+                "iam:ResyncMFADevice",
+                "iam:ListAccountAliases",
+                "iam:ListUsers",
+                "iam:ListSSHPublicKeys",
+                "iam:ListAccessKeys",
+                "iam:ListServiceSpecificCredentials",
+                "iam:ListMFADevices",
+                "iam:GetAccountSummary",
+                "codecommit:GitPull",
+                "codecommit:GitPush",
+                "kms:Encrypt",
+                "kms:Decrypt",
+                "kms:ReEncrypt",
+                "kms:GenerateDataKey",
+                "kms:GenerateDataKeyWithoutPlaintext",
+                "kms:DescribeKey",
+                "sts:GetSessionToken",
+                "iam:ChangePassword",
+                "iam:CreateRole"
+              ],
+              "Resource": "*",
+              "Condition": {
+                "BoolIfExists": {
+                  "aws:MultiFactorAuthPresent": "false"
+                }
+              }
+            },
+            {
+              "Sid": "ManageOwnAccessKeys",
+              "Effect": "Allow",
+              "Action": [
+                "iam:CreateAccessKey",
+                "iam:DeleteAccessKey",
+                "iam:GetAccessKeyLastUsed",
+                "iam:GetUser",
+                "iam:ListAccessKeys",
+                "iam:UpdateAccessKey"
+              ],
+              "Resource": "arn:aws:iam::*:user/${aws:username}"
+            }
+          ]
+        },
+        "Groups": [
+          {
+            "Ref": "DeveloperGroup"
+          }
+        ]
+      }
+    },
+    "AWSInstructor": {
+      "Type": "AWS::IAM::User",
+      "Properties": {
+        "UserName": "aws-instructor",
+        "LoginProfile": {
+          "Password": "4EdFXpm]Tqd",
+          "PasswordResetRequired": "True"
+        },
+        "Path": "/"
+      }
+    },
+    "PatrickHynes": {
+      "Type": "AWS::IAM::User",
+      "Properties": {
+        "UserName": "me@hynespm.com",
+        "LoginProfile": {
+          "Password": "4EdFXpm]Tqd",
+          "PasswordResetRequired": "True"
+        },
+        "Path": "/"
+      }
+    },
+    "DeveloperGroupUserMembership": {
+      "Type": "AWS::IAM::UserToGroupAddition",
+      "Properties": {
+        "GroupName": "Developers",
+        "Users": [
+          {
+            "Ref": "AWSInstructor"
+          }
+        ]
+      }
+    },
+    "AdministratorsGroupUserMembership": {
+      "Type": "AWS::IAM::UserToGroupAddition",
+      "Properties": {
+        "GroupName": "Admins",
+        "Users": [
+          {
+            "Ref": "PatrickHynes"
+          }
+        ]
+      }
+    }
+  }
+}

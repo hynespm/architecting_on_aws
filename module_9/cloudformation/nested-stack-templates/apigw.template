@@ -1,0 +1,239 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+  "Description" : "Cloudformation template for the API Gateway infrastructure",
+  "Parameters" :{
+     "Environment": {
+      "Description": "The name of the environment",
+      "Type": "String"
+    },
+    "Scope": {
+      "Type": "String",
+      "Description": "The name of this stack"
+    }
+  },
+  "Resources" : {
+   "API": {
+      "Type": "AWS::ApiGateway::RestApi",
+      "Properties": {
+        "Name": {
+          "Fn::Sub": [
+            "${name}-${env}-rest-api",
+            {
+              "name": {
+                "Ref": "Scope"
+              },
+              "env": {
+                "Ref": "Environment"
+              }
+            }
+          ]
+        },
+        "Description": "EMDAAS Experiments API",
+        "EndpointConfiguration": {
+          "Types": [
+            "REGIONAL"
+          ]
+        }
+      }
+    },
+    "ApiGatewayCloudWatchLogsRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": [
+                  "apigateway.amazonaws.com"
+                ]
+              },
+              "Action": [
+                "sts:AssumeRole"
+              ]
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "ApiGatewayLogsPolicy",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:CreateLogGroup",
+                    "logs:CreateLogStream",
+                    "logs:DescribeLogGroups",
+                    "logs:DescribeLogStreams",
+                    "logs:PutLogEvents",
+                    "logs:GetLogEvents",
+                    "logs:FilterLogEvents"
+                  ],
+                  "Resource": "*"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "ApiGatewayAccount": {
+      "Type": "AWS::ApiGateway::Account",
+      "Properties": {
+        "CloudWatchRoleArn": {
+          "Fn::GetAtt": [
+            "ApiGatewayCloudWatchLogsRole",
+            "Arn"
+          ]
+        }
+      }
+    },
+    "RootMethod": {
+      "Type": "AWS::ApiGateway::Method",
+      "Properties": {
+        "AuthorizationType": "NONE",
+        "HttpMethod": "GET",
+        "RestApiId": {
+          "Ref": "API"
+        },
+        "ResourceId": {
+          "Fn::GetAtt": [
+            "API",
+            "RootResourceId"
+          ]
+        },
+        "Integration": {
+          "Type": "MOCK"
+        }
+      }
+    },
+    "APIDeployment": {
+      "Type": "AWS::ApiGateway::Deployment",
+      "DependsOn": [
+        "RootMethod"
+      ],
+      "Properties": {
+        "RestApiId": {
+          "Ref": "API"
+        },
+        "StageName": ""
+      }
+    },
+    "APIKey": {
+      "Type": "AWS::ApiGateway::ApiKey",
+      "Properties": {
+        "Name": {
+          "Fn::Sub": [
+            "${name}-${env}-api-key",
+            {
+              "name": {
+                "Ref": "Scope"
+              },
+              "env": {
+                "Ref": "Environment"
+              }
+            }
+          ]
+        },
+        "Description": "EMDAAS API Key",
+        "Enabled": true,
+        "GenerateDistinctId": "False"
+      }
+    },
+    "APIUsagePlan": {
+      "Type": "AWS::ApiGateway::UsagePlan",
+      "Properties": {
+        "ApiStages": [
+          {
+            "ApiId": {
+              "Ref": "API"
+            },
+            "Stage": {
+              "Ref": "APIStage"
+            }
+          }
+        ],
+        "Description": "EMDAAS API Usage plan",
+        "Quota": {
+          "Limit": 2000,
+          "Period": "MONTH"
+        },
+        "Throttle": {
+          "BurstLimit": 10,
+          "RateLimit": 10
+        },
+        "UsagePlanName": "EMDAAS API Usage plan"
+      }
+    },
+    "APIUsagePlanKey": {
+      "Type": "AWS::ApiGateway::UsagePlanKey",
+      "Properties": {
+        "KeyId": {
+          "Ref": "APIKey"
+        },
+        "KeyType": "API_KEY",
+        "UsagePlanId": {
+          "Ref": "APIUsagePlan"
+        }
+      }
+    },
+    "APIStage": {
+      "Type": "AWS::ApiGateway::Stage",
+      "DependsOn": [
+        "ApiGatewayAccount"
+      ],
+      "Properties": {
+        "MethodSettings": [
+          {
+            "DataTraceEnabled": true,
+            "HttpMethod": "*",
+            "LoggingLevel": "INFO",
+            "ResourcePath": "/*"
+          }
+        ],
+        "StageName": {
+          "Ref": "Environment"
+        },
+        "Description": "EMDAAS API Stage",
+        "RestApiId": {
+          "Ref": "API"
+        },
+        "DeploymentId": {
+          "Ref": "APIDeployment"
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "API": {
+      "Description": "Rest API",
+      "Value": {
+        "Ref": "API"
+      },
+      "Export": {
+        "Name": "API"
+      }
+    },
+    "APIStage": {
+      "Description": "Rest API stage",
+      "Value": {
+        "Ref": "APIStage"
+      },
+      "Export": {
+        "Name": "APIStage"
+      }
+    },
+    "APIDeployment": {
+      "Description": "Rest API deployment",
+      "Value": {
+        "Ref": "APIDeployment"
+      },
+      "Export": {
+        "Name": "APIDeployment"
+      }
+    }
+  }
+}

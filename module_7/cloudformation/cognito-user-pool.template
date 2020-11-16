@@ -1,0 +1,23 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+  "Description" : "Template for cognito user pool",
+  "Resources" : {
+   "UserPool": {
+      "Type": "AWS::Cognito::UserPool",
+      "Properties": {
+        "EmailConfiguration": {
+          "EmailSendingAccount": "COGNITO_DEFAULT"
+        },
+        "AutoVerifiedAttributes": [
+          "email"
+        ],
+        "UsernameAttributes": [
+          "email"
+        ],
+        "AdminCreateUserConfig": {
+          "AllowAdminCreateUserOnly": false
+        }
+      }
+    }
+  }
+}

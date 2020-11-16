@@ -1,0 +1,92 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+  "Description" : "Cloudfomration template for RDS",
+  "Resources" : {
+    "RDSCluster": {
+        "Type": "AWS::RDS::DBCluster",
+        "Properties": {
+            "MasterUsername": {
+                "Ref": "username"
+            },
+            "MasterUserPassword": {
+                "Ref": "password"
+            },
+            "Engine": "aurora",
+            "DBSubnetGroupName": {
+                "Ref": "DBSubnetGroup"
+            },
+            "DBClusterParameterGroupName": {
+                "Ref": "RDSDBClusterParameterGroup"
+            }
+        }
+    },
+    "RDSDBInstance1": {
+        "Type": "AWS::RDS::DBInstance",
+        "Properties": {
+            "DBSubnetGroupName": {
+                "Ref": "DBSubnetGroup"
+            },
+            "DBParameterGroupName": {
+                "Ref": "RDSDBParameterGroup"
+            },
+            "Engine": "aurora",
+            "DBClusterIdentifier": {
+                "Ref": "RDSCluster"
+            },
+            "PubliclyAccessible": "true",
+            "AvailabilityZone": {
+                "Fn::GetAtt": [
+                    "Subnet1",
+                    "AvailabilityZone"
+                ]
+            },
+            "DBInstanceClass": "db.r3.xlarge"
+        }
+    },
+    "RDSDBInstance2": {
+        "Type": "AWS::RDS::DBInstance",
+        "Properties": {
+            "DBSubnetGroupName": {
+                "Ref": "DBSubnetGroup"
+            },
+            "DBParameterGroupName": {
+                "Ref": "RDSDBParameterGroup"
+            },
+            "Engine": "aurora",
+            "DBClusterIdentifier": {
+                "Ref": "RDSCluster"
+            },
+            "PubliclyAccessible": "true",
+            "AvailabilityZone": {
+                "Fn::GetAtt": [
+                    "Subnet2",
+                    "AvailabilityZone"
+                ]
+            },
+            "DBInstanceClass": "db.r3.xlarge"
+        }
+    },
+    "RDSDBClusterParameterGroup": {
+        "Type": "AWS::RDS::DBClusterParameterGroup",
+        "Properties": {
+            "Description": "CloudFormation Sample Aurora Cluster Parameter Group",
+            "Family": "aurora5.6",
+            "Parameters": {
+                "time_zone": "US/Eastern"
+            }
+        }
+    },
+    "RDSDBParameterGroup": {
+        "Type": "AWS::RDS::DBParameterGroup",
+        "Properties": {
+            "Description": "CloudFormation Sample Aurora Parameter Group",
+            "Family": "aurora5.6",
+            "Parameters": {
+                "sql_mode": "IGNORE_SPACE",
+                "max_allowed_packet": 1024,
+                "innodb_buffer_pool_size": "{DBInstanceClassMemory*3/4}"
+            }
+        }
+    }
+}
+}

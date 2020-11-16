@@ -1,0 +1,554 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Cloudformation template to create an API",
+  "Parameters": {
+    "ServiceName": {
+      "Description": "Service name",
+      "Type": "String",
+      "Default": "greeting-service"
+    },
+    "Environment": {
+      "Description": "The name of the environment",
+      "Type": "String",
+      "Default": "demo"
+    },
+    "Scope": {
+      "Type": "String",
+      "Description": "The name of this stack"
+    },
+    "Runtime": {
+      "Type": "String",
+      "Description": "Runtime of the lambda ",
+      "Default": "python3.7"
+    },
+    "FQDomainName": {
+      "Description": "The domain name",
+      "Type": "String"
+    }
+  },
+  "Resources": {
+    "HostedZone": {
+      "Type": "AWS::Route53::HostedZone",
+      "Properties": {
+        "Name": {
+          "Ref": "FQDomainName"
+        }
+      }
+    },
+    "Table": {
+      "Type": "AWS::DynamoDB::Table",
+      "Properties": {
+        "TableName": {
+          "Fn::Join": [
+            "-",
+            [
+              {
+                "Ref": "AWS::AccountId"
+              },
+              {
+                "Ref": "AWS::Region"
+              },
+              "greeting-table"
+            ]
+          ]
+        },
+        "StreamSpecification": {
+          "StreamViewType": "NEW_IMAGE"
+        },
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "message_id",
+            "AttributeType": "S"
+          }
+        ],
+        "KeySchema": [
+          {
+            "AttributeName": "message_id",
+            "KeyType": "HASH"
+          }
+        ],
+        "ProvisionedThroughput": {
+          "ReadCapacityUnits": "5",
+          "WriteCapacityUnits": "5"
+        },
+        "GlobalSecondaryIndexes": [
+          {
+            "IndexName": "message-id-index",
+            "KeySchema": [
+              {
+                "AttributeName": "message_id",
+                "KeyType": "HASH"
+              }
+            ],
+            "Projection": {
+              "ProjectionType": "ALL"
+            },
+            "ProvisionedThroughput": {
+              "ReadCapacityUnits": "5",
+              "WriteCapacityUnits": "5"
+            }
+          }
+        ]
+      }
+    },
+    "API": {
+      "Type": "AWS::ApiGateway::RestApi",
+      "Properties": {
+        "Name": {
+          "Fn::Sub": [
+            "${name}-${env}-rest-api",
+            {
+              "name": {
+                "Ref": "Scope"
+              },
+              "env": {
+                "Ref": "Environment"
+              }
+            }
+          ]
+        },
+        "Description": "Demo API",
+        "EndpointConfiguration": {
+          "Types": [
+            "REGIONAL"
+          ]
+        }
+      }
+    },
+    "ApiGatewayCloudWatchLogsRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": [
+                  "apigateway.amazonaws.com"
+                ]
+              },
+              "Action": [
+                "sts:AssumeRole"
+              ]
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "ApiGatewayLogsPolicy",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:CreateLogGroup",
+                    "logs:CreateLogStream",
+                    "logs:DescribeLogGroups",
+                    "logs:DescribeLogStreams",
+                    "logs:PutLogEvents",
+                    "logs:GetLogEvents",
+                    "logs:FilterLogEvents"
+                  ],
+                  "Resource": "*"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "ApiGatewayAccount": {
+      "Type": "AWS::ApiGateway::Account",
+      "Properties": {
+        "CloudWatchRoleArn": {
+          "Fn::GetAtt": [
+            "ApiGatewayCloudWatchLogsRole",
+            "Arn"
+          ]
+        }
+      }
+    },
+    "RootMethod": {
+      "Type": "AWS::ApiGateway::Method",
+      "Properties": {
+        "AuthorizationType": "NONE",
+        "HttpMethod": "GET",
+        "RestApiId": {
+          "Ref": "API"
+        },
+        "ResourceId": {
+          "Fn::GetAtt": [
+            "API",
+            "RootResourceId"
+          ]
+        },
+        "Integration": {
+          "Type": "MOCK"
+        }
+      }
+    },
+    "APIDeployment": {
+      "Type": "AWS::ApiGateway::Deployment",
+      "DependsOn": [
+        "RootMethod"
+      ],
+      "Properties": {
+        "RestApiId": {
+          "Ref": "API"
+        },
+        "StageName": ""
+      }
+    },
+    "APIKey": {
+      "Type": "AWS::ApiGateway::ApiKey",
+      "Properties": {
+        "Name": {
+          "Fn::Sub": [
+            "${name}-${env}-api-key",
+            {
+              "name": {
+                "Ref": "Scope"
+              },
+              "env": {
+                "Ref": "Environment"
+              }
+            }
+          ]
+        },
+        "Description": "EMDAAS API Key",
+        "Enabled": true,
+        "GenerateDistinctId": "False"
+      }
+    },
+    "APIUsagePlan": {
+      "Type": "AWS::ApiGateway::UsagePlan",
+      "Properties": {
+        "ApiStages": [
+          {
+            "ApiId": {
+              "Ref": "API"
+            },
+            "Stage": {
+              "Ref": "APIStage"
+            }
+          }
+        ],
+        "Description": "EMDAAS API Usage plan",
+        "Quota": {
+          "Limit": 2000,
+          "Period": "MONTH"
+        },
+        "Throttle": {
+          "BurstLimit": 10,
+          "RateLimit": 10
+        },
+        "UsagePlanName": "EMDAAS API Usage plan"
+      }
+    },
+    "APIUsagePlanKey": {
+      "Type": "AWS::ApiGateway::UsagePlanKey",
+      "Properties": {
+        "KeyId": {
+          "Ref": "APIKey"
+        },
+        "KeyType": "API_KEY",
+        "UsagePlanId": {
+          "Ref": "APIUsagePlan"
+        }
+      }
+    },
+    "APIStage": {
+      "Type": "AWS::ApiGateway::Stage",
+      "DependsOn": [
+        "ApiGatewayAccount"
+      ],
+      "Properties": {
+        "MethodSettings": [
+          {
+            "DataTraceEnabled": true,
+            "HttpMethod": "*",
+            "LoggingLevel": "INFO",
+            "ResourcePath": "/*"
+          }
+        ],
+        "StageName": {
+          "Ref": "Environment"
+        },
+        "Description": "EMDAAS API Stage",
+        "RestApiId": {
+          "Ref": "API"
+        },
+        "DeploymentId": {
+          "Ref": "APIDeployment"
+        }
+      }
+    },
+    "InvokePermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "Lambda",
+            "Arn"
+          ]
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Sub": [
+            "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apigateway}/*",
+            {
+              "apigateway": {
+                "Ref": "API"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "LambdaIAMRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": {
+          "Fn::Sub": [
+            "${name}-${env}-${function}-role",
+            {
+              "name": {
+                "Ref": "Scope"
+              },
+              "env": {
+                "Ref": "Environment"
+              },
+              "function": {
+                "Ref": "ServiceName"
+              }
+            }
+          ]
+        },
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": [
+                  "lambda.amazonaws.com"
+                ]
+              },
+              "Action": [
+                "sts:AssumeRole"
+              ]
+            }
+          ]
+        },
+        "Path": "/",
+        "ManagedPolicyArns": [
+          "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+          "arn:aws:iam::aws:policy/AmazonS3FullAccess",
+          "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess"
+        ]
+      }
+    },
+    "Lambda": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Environment": {
+          "Variables": {
+            "Table": {
+              "Ref": "Table"
+            }
+          }
+        },
+        "FunctionName": {
+          "Fn::Sub": [
+            "${env}-${name}",
+            {
+              "env": {
+                "Ref": "Environment"
+              },
+              "name": {
+                "Ref": "ServiceName"
+              }
+            }
+          ]
+        },
+        "Handler": "lambda_function.lambda_handler",
+        "Role": {
+          "Fn::GetAtt": [
+            "LambdaIAMRole",
+            "Arn"
+          ]
+        },
+        "Code": {
+          "ZipFile": "def lambda_handler(event,object):\n response = {\"statusCode\":\"200\",\"body\": json.stringify(\"Hello world!\")}"
+        },
+        "Runtime": {
+          "Ref": "Runtime"
+        },
+        "Timeout": 300
+      }
+    },
+    "LambdaLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": {
+          "Fn::Join": [
+            "/",
+            [
+              "/aws/lambda",
+              {
+                "Ref": "Lambda"
+              }
+            ]
+          ]
+        },
+        "RetentionInDays": 1
+      }
+    },
+    "APIGWExecutionRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": {
+          "Fn::Sub": [
+            "${name}-${env}-${function}-apigw-role",
+            {
+              "name": {
+                "Ref": "Scope"
+              },
+              "env": {
+                "Ref": "Environment"
+              },
+              "function": {
+                "Ref": "ServiceName"
+              }
+            }
+          ]
+        },
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": [
+                  "apigateway.amazonaws.com"
+                ]
+              },
+              "Action": [
+                "sts:AssumeRole"
+              ]
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "root",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": "lambda:*",
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "Lambda",
+                      "Arn"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "Outputs": {
+    "NameServers": {
+      "Description": "NS from hosted zone",
+      "Value": {
+        "Fn::Join": [
+          ",",
+          [
+            {
+              "Fn::Select": [
+                "0",
+                {
+                  "Fn::GetAtt": [
+                    "HostedZone",
+                    "NameServers"
+                  ]
+                }
+              ]
+            },
+            {
+              "Fn::Select": [
+                "1",
+                {
+                  "Fn::GetAtt": [
+                    "HostedZone",
+                    "NameServers"
+                  ]
+                }
+              ]
+            },
+            {
+              "Fn::Select": [
+                "2",
+                {
+                  "Fn::GetAtt": [
+                    "HostedZone",
+                    "NameServers"
+                  ]
+                }
+              ]
+            },
+            {
+              "Fn::Select": [
+                "3",
+                {
+                  "Fn::GetAtt": [
+                    "HostedZone",
+                    "NameServers"
+                  ]
+                }
+              ]
+            }
+          ]
+        ]
+      },
+      "Export": {
+        "Name": "NameServers"
+      }
+    },
+    "HostedZoneId": {
+      "Description": "Dev Hosted Zone",
+      "Value": {
+        "Ref": "HostedZone"
+      },
+      "Export": {
+        "Name": "HostedZoneId"
+      }
+    },
+    "APIID": {
+      "Description": "Rest API",
+      "Value": {
+        "Ref": "API"
+      },
+      "Export": {
+        "Name": "APIID"
+      }
+    },
+    "APIIDStage": {
+      "Description": "Rest API stage",
+      "Value": {
+        "Ref": "APIStage"
+      },
+      "Export": {
+        "Name": "APIIDStage"
+      }
+    }
+  }
+}

@@ -1,0 +1,200 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Lambda function integrated with an APIGW",
+  "Parameters": {
+    "Scope": {
+      "Type": "String",
+      "Description": "The name of this stack"
+    },
+    "ServiceName": {
+      "Type": "String",
+      "Description": "Name of the service"
+    },
+    "Runtime": {
+      "Type": "String",
+      "Description": "Runtime of the lambda "
+    },
+    "Environment": {
+      "Description": "The name of the environment",
+      "Type": "String"
+    },
+    "API": {
+      "Description": "The name of the api",
+      "Type": "String"
+    }
+  },
+  "Resources": {
+    "InvokePermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "Lambda",
+            "Arn"
+          ]
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Sub": [
+            "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apigateway}/*",
+            {
+              "apigateway": {
+                "Ref": "API"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "LambdaIAMRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": {
+          "Fn::Sub": [
+            "${name}-${env}-${function}-role",
+            {
+              "name": {
+                "Ref": "Scope"
+              },
+              "env": {
+                "Ref": "Environment"
+              },
+              "function": {
+                "Ref": "ServiceName"
+              }
+            }
+          ]
+        },
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": [
+                  "lambda.amazonaws.com"
+                ]
+              },
+              "Action": [
+                "sts:AssumeRole"
+              ]
+            }
+          ]
+        },
+        "Path": "/",
+        "ManagedPolicyArns": [
+          "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+          "arn:aws:iam::aws:policy/AmazonS3FullAccess",
+          "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess"
+        ]
+      }
+    },
+    "Lambda": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": {
+          "Fn::Sub": [
+            "${env}-${name}",
+            {
+              "env": {
+                "Ref": "Environment"
+              },
+              "name": {
+                "Ref": "ServiceName"
+              }
+            }
+          ]
+        },
+        "Handler": "lambda_function.lambda_handler",
+        "Role": {
+          "Fn::GetAtt": [
+            "LambdaIAMRole",
+            "Arn"
+          ]
+        },
+        "Code": {
+          "ZipFile": "def lambda_handler(event,object):\n response = {\"statusCode\":\"200\",\"body\": json.stringify(\"Hello world!\")}"
+        },
+        "Runtime": {
+          "Ref": "Runtime"
+        },
+        "Timeout": 300
+      }
+    },
+    "LambdaLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": {
+          "Fn::Join": [
+            "/",
+            [
+              "/aws/lambda",
+              {
+                "Ref": "Lambda"
+              }
+            ]
+          ]
+        },
+        "RetentionInDays": 1
+      }
+    },
+    "APIGWExecutionRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": {
+          "Fn::Sub": [
+            "${name}-${env}-${function}-apigw-role",
+            {
+              "name": {
+                "Ref": "Scope"
+              },
+              "env": {
+                "Ref": "Environment"
+              },
+              "function": {
+                "Ref": "ServiceName"
+              }
+            }
+          ]
+        },
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": [
+                  "apigateway.amazonaws.com"
+                ]
+              },
+              "Action": [
+                "sts:AssumeRole"
+              ]
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "root",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": "lambda:*",
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "Lambda",
+                      "Arn"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  }
+}
