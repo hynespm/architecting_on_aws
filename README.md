@@ -4,6 +4,7 @@ Repository of materials for use as part of the Architecting on AWS course. Mater
 
 ## Author: Patrick Hynes
 
+As a certified AWS instructor, I deliver a course called Architecting on AWS. And this repository is a collecton of scripts and templates I used when delivering that course.
 
 ## Repository Structure
 
